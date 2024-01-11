@@ -1,6 +1,6 @@
 {
-  "domain": "load_shedding",
-  "name": "Load Shedding",
+  "domain": "load_shedding 2",
+  "name": "Load Shedding 2",
   "config_flow": true,
   "documentation": "https://github.com/wernerhp/ha_integration_load_shedding/blob/master/README.md",
   "issue_tracker": "https://github.com/wernerhp/ha_integration_load_shedding/issues",
