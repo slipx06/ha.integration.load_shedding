@@ -5,15 +5,15 @@ from typing import Final
 
 API: Final = "API"
 ATTRIBUTION: Final = "Data provided by {provider}"
-DOMAIN: Final = "load_shedding"
+DOMAIN: Final = "load_shedding_2"
 MAX_FORECAST_DAYS: Final = 7
-NAME: Final = "Load Shedding"
+NAME: Final = "Load Shedding_2"
 MANUFACTURER: Final = "@wernerhp"
-VERSION: Final = "1.1.0"
+VERSION: Final = "1.1.1"
 DEFAULT_SCAN_INTERVAL: Final = 60
 AREA_UPDATE_INTERVAL: Final = 86400  # 60sec * 60min * 24h / daily
 QUOTA_UPDATE_INTERVAL: Final = 1800  # 60sec * 30min
-STAGE_UPDATE_INTERVAL: Final = 3600  # 60sec * 60min / hourly
+STAGE_UPDATE_INTERVAL: Final = 5400  # 60sec * 60min / every 1 and a half hour
 
 CONF_DEFAULT_SCHEDULE_STAGE: Final = "default_schedule_stage"
 CONF_MUNICIPALITY: Final = "municipality"
