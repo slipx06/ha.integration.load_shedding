@@ -4,29 +4,34 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import voluptuous as vol
-from homeassistant import config_entries
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
-from homeassistant.const import CONF_API_KEY, CONF_DESCRIPTION, CONF_ID, CONF_NAME
-from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult, FlowHandler
-
 from load_shedding import Provider, Province, get_areas
 from load_shedding.libs.sepush import SePush, SePushError
 from load_shedding.providers import ProviderError, Stage
+import voluptuous as vol
+
+from homeassistant import config_entries
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    OptionsFlow,
+    OptionsFlowWithConfigEntry,
+)
+from homeassistant.const import CONF_API_KEY, CONF_DESCRIPTION, CONF_ID, CONF_NAME
+from homeassistant.core import callback
+from homeassistant.data_entry_flow import FlowResult
+
 from .const import (
-    CONF_AREA_ID,
-    CONF_AREAS,
-    CONF_PROVIDER,
-    CONF_SEARCH,
-    DOMAIN,
-    NAME,
     CONF_ACTION,
     CONF_ADD_AREA,
+    CONF_AREA_ID,
+    CONF_AREAS,
     CONF_DELETE_AREA,
-    CONF_MULTI_STAGE_EVENTS,
     CONF_MIN_EVENT_DURATION,
+    CONF_MULTI_STAGE_EVENTS,
+    CONF_SEARCH,
     CONF_SETUP_API,
+    DOMAIN,
+    NAME,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,17 +41,18 @@ _LOGGER = logging.getLogger(__name__)
 class LoadSheddingFlowHandler(ConfigFlow, domain=DOMAIN):
     """Config flow for LoadShedding."""
 
-    VERSION = 4
+    VERSION = 5
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the flow handler."""
         self.provider: Provider = None
         self.api_key: str = ""
         self.areas: dict = {}
-        # self.device_unique_id = f"{DOMAIN}"
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        """Get the options flow."""
         return LoadSheddingOptionsFlowHandler(config_entry)
 
     @classmethod
@@ -86,7 +92,7 @@ class LoadSheddingFlowHandler(ConfigFlow, domain=DOMAIN):
                 # Validate the token by checking the allowance.
                 sepush = SePush(token=self.api_key)
                 await self.hass.async_add_executor_job(sepush.check_allowance)
-            except (SePushError) as err:
+            except SePushError as err:
                 status_code = err.__cause__.args[0]
                 if status_code == 400:
                     errors["base"] = "sepush_400"
@@ -212,26 +218,14 @@ class LoadSheddingFlowHandler(ConfigFlow, domain=DOMAIN):
         data = {}
         options = {
             CONF_API_KEY: self.api_key,
-            CONF_AREAS: {
-                area.id: {
+            CONF_AREAS: [
+                {
                     CONF_DESCRIPTION: description,
                     CONF_NAME: area.name,
                     CONF_ID: area.id,
                 },
-            },
+            ],
         }
-
-        # entry = await self.async_set_unique_id(DOMAIN)
-        # if entry:
-        #     try:
-        #         _LOGGER.debug("Entry exists: %s", entry)
-        #         if self.hass.config_entries.async_update_entry(entry, data=data):
-        #             await self.hass.config_entries.async_reload(entry.entry_id)
-        #     except Exception:
-        #         _LOGGER.debug("Unknown error", exc_info=True)
-        #         raise
-        #     else:
-        #         return self.async_abort(reason=FlowResultType.SHOW_PROGRESS_DONE)
 
         return self.async_create_entry(
             title=NAME,
@@ -241,14 +235,12 @@ class LoadSheddingFlowHandler(ConfigFlow, domain=DOMAIN):
         )
 
 
-class LoadSheddingOptionsFlowHandler(OptionsFlow):
+class LoadSheddingOptionsFlowHandler(OptionsFlowWithConfigEntry):
     """Load Shedding config flow options handler."""
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize options flow."""
-        # self.config_entry: ConfigEntry = config_entry
-        self.opts = dict(config_entry.options)
-
+        super().__init__(config_entry)
         self.provider = Provider.SE_PUSH
         self.api_key = config_entry.options.get(CONF_API_KEY)
         self.areas = {}
@@ -260,36 +252,38 @@ class LoadSheddingOptionsFlowHandler(OptionsFlow):
 
         CONF_ACTIONS = {
             CONF_SETUP_API: "Configure API",
-            # CONF_ADD_AREA: "Add area",
-            # CONF_DELETE_AREA: "Remove area",
-            # CONF_MULTI_STAGE_EVENTS: ""
+            CONF_ADD_AREA: "Add area",
+            CONF_DELETE_AREA: "Remove area",
         }
-
-        OPTIONS_SCHEMA = vol.Schema(
-            {
-                vol.Optional(CONF_ACTION): vol.In(CONF_ACTIONS),
-                vol.Optional(
-                    CONF_MULTI_STAGE_EVENTS,
-                    default=self.opts.get(CONF_MULTI_STAGE_EVENTS, False),
-                ): bool,
-                vol.Optional(
-                    CONF_MIN_EVENT_DURATION,
-                    default=self.opts.get(CONF_MIN_EVENT_DURATION, 30),
-                ): int,
-            }
-        )
 
         if user_input is not None:
             if user_input.get(CONF_ACTION) == CONF_SETUP_API:
                 return await self.async_step_sepush()
             if user_input.get(CONF_ACTION) == CONF_ADD_AREA:
                 return await self.async_step_add_area()
-            # if user_input.get(CONF_ACTION) == CONF_DELETE_AREA:
-            #     return await self.async_step_delete_area()
-            self.opts[CONF_MULTI_STAGE_EVENTS] = user_input.get(CONF_MULTI_STAGE_EVENTS)
-            self.opts[CONF_MIN_EVENT_DURATION] = user_input.get(CONF_MIN_EVENT_DURATION)
-            return self.async_create_entry(title=NAME, data=self.opts)
+            if user_input.get(CONF_ACTION) == CONF_DELETE_AREA:
+                return await self.async_step_delete_area()
+            self.options[CONF_MULTI_STAGE_EVENTS] = user_input.get(
+                CONF_MULTI_STAGE_EVENTS
+            )
+            self.options[CONF_MIN_EVENT_DURATION] = user_input.get(
+                CONF_MIN_EVENT_DURATION
+            )
+            return self.async_create_entry(title=NAME, data=self.options)
 
+        OPTIONS_SCHEMA = vol.Schema(
+            {
+                vol.Optional(CONF_ACTION): vol.In(CONF_ACTIONS),
+                vol.Optional(
+                    CONF_MULTI_STAGE_EVENTS,
+                    default=self.options.get(CONF_MULTI_STAGE_EVENTS, True),
+                ): bool,
+                vol.Optional(
+                    CONF_MIN_EVENT_DURATION,
+                    default=self.options.get(CONF_MIN_EVENT_DURATION, 31),
+                ): int,
+            }
+        )
         return self.async_show_form(
             step_id="init",
             data_schema=OPTIONS_SCHEMA,
@@ -312,7 +306,7 @@ class LoadSheddingOptionsFlowHandler(OptionsFlow):
                 sepush = SePush(token=api_key)
                 esp = await self.hass.async_add_executor_job(sepush.check_allowance)
                 _LOGGER.debug("Validate API Key Response: %s", esp)
-            except (SePushError) as err:
+            except SePushError as err:
                 status_code = err.__cause__.args[0]
                 if status_code == 400:
                     errors["base"] = "sepush_400"
@@ -326,8 +320,8 @@ class LoadSheddingOptionsFlowHandler(OptionsFlow):
                     errors["base"] = "provider_error"
             else:
                 self.api_key = api_key
-                self.opts[CONF_API_KEY] = api_key
-                return self.async_create_entry(title=NAME, data=self.opts)
+                self.options[CONF_API_KEY] = api_key
+                return self.async_create_entry(title=NAME, data=self.options)
 
         data_schema = vol.Schema(
             {
@@ -339,37 +333,6 @@ class LoadSheddingOptionsFlowHandler(OptionsFlow):
             data_schema=data_schema,
             errors=errors,
         )
-
-    # async def async_step_init(
-    #     self, user_input: dict[str, Any] | None = None
-    # ) -> FlowResult:  # pylint: disable=unused-argument
-    #     """Manage the options."""
-
-    #     CONF_ACTIONS = {
-    #         CONF_ADD_DEVICE: "Add Area",
-    #         CONF_EDIT_DEVICE: "Remove Area",
-    #     }
-
-    #     CONFIGURE_SCHEMA = vol.Schema(
-    #         {
-    #             vol.Required(CONF_ACTION, default=CONF_ADD_DEVICE): vol.In(
-    #                 CONF_ACTIONS
-    #             ),
-    #         }
-    #     )
-
-    #     return self.async_show_form(step_id="init", data_schema=vol.Schema(schema))
-
-    #     schema: dict[vol.Marker, type] = {}
-    #     areas = self.opts.get(CONF_AREAS, {})
-    #     for area_id, area in areas.items():
-    #         schema[vol.Required(area_id, default=True)] = vol.In(
-    #             {area_id: area.get(CONF_DESCRIPTION)}
-    #         )
-
-    #     return self.async_show_form(step_id="init", data_schema=vol.Schema(schema))
-
-    #     return await self.async_step_lookup_areas()
 
     async def async_step_add_area(
         self, user_input: dict[str, Any] | None = None
@@ -395,6 +358,7 @@ class LoadSheddingOptionsFlowHandler(OptionsFlow):
             Stage.STAGE_8,
         ]:
             stages[stage.value] = f"{stage}"
+
         data_schema = vol.Schema(
             {
                 vol.Required(CONF_SEARCH): str,
@@ -469,7 +433,6 @@ class LoadSheddingOptionsFlowHandler(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the flow step to create a area."""
-        areas = self.opts.get(CONF_AREAS, {})
         area = self.areas.get(user_input.get(CONF_AREA_ID))
 
         description = f"{area.name}"
@@ -478,16 +441,43 @@ class LoadSheddingOptionsFlowHandler(OptionsFlow):
         if area.province is not Province.UNKNOWN:
             description += f", {area.province}"
 
-        areas[area.id] = {
-            CONF_DESCRIPTION: description,
-            CONF_NAME: area.name,
-            CONF_ID: area.id,
-        }
-
-        self.opts.update(
+        self.options[CONF_AREAS].append(
             {
-                CONF_AREAS: areas,
+                CONF_DESCRIPTION: description,
+                CONF_NAME: area.name,
+                CONF_ID: area.id,
             }
         )
-        result = self.async_create_entry(title=NAME, data=self.opts)
+
+        result = self.async_create_entry(title=NAME, data=self.options)
         return result
+
+    async def async_step_delete_area(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the flow step to delete an area."""
+
+        if user_input is None:
+            area_idx = {}
+            for idx, area in enumerate(self.options.get(CONF_AREAS, [])):
+                area_idx[idx] = area.get(CONF_NAME)
+
+            data_schema = vol.Schema(
+                {
+                    vol.Optional(CONF_AREA_ID): vol.In(area_idx),
+                }
+            )
+
+            return self.async_show_form(
+                step_id="delete_area",
+                data_schema=data_schema,
+            )
+        else:
+            new_areas = []
+            for idx, area in enumerate(self.options.get(CONF_AREAS, [])):
+                if idx == user_input.get(CONF_AREA_ID):
+                    continue
+                new_areas.append(area)
+
+            self.options[CONF_AREAS] = new_areas
+            return self.async_create_entry(title=NAME, data=self.options)
